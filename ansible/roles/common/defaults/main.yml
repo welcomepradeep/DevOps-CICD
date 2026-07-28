@@ -1,0 +1,8 @@
+---
+timezone: Asia/Kolkata
+
+project_directory: /opt/devops
+
+application_directory: /opt/app
+
+log_directory: /var/log/devops

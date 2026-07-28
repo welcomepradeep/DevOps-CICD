@@ -1,0 +1,38 @@
+---
+############################################################
+# Install Git
+############################################################
+
+- name: Install Git
+  dnf:
+    name: git
+    state: present
+
+############################################################
+# Configure Git (Optional)
+############################################################
+
+- name: Configure Git Username
+  git_config:
+    name: user.name
+    value: welcomepradeep
+    scope: system
+
+- name: Configure Git Email
+  git_config:
+    name: user.email
+    value: pradeep.nayak@hotmail.com
+    scope: system
+
+############################################################
+# Verify Git
+############################################################
+
+- name: Get Git Version
+  command: git --version
+  register: git_version
+  changed_when: false
+
+- name: Display Git Version
+  debug:
+    var: git_version.stdout

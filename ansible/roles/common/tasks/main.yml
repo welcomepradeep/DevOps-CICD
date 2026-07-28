@@ -1,0 +1,162 @@
+---
+############################################################
+# Update RHEL Packages
+############################################################
+
+- name: Update all packages
+  dnf:
+    name: "*"
+    state: latest
+    update_cache: yes
+
+############################################################
+# Install Common Packages
+############################################################
+
+- name: Install common packages
+  dnf:
+    name:
+      - git
+      - wget
+      - curl
+      - vim
+      - unzip
+      - zip
+      - tar
+      - tree
+      - net-tools
+      - bind-utils
+      - bash-completion
+      - python3
+      - python3-pip
+      - jq
+      - rsync
+      - firewalld
+      - chrony
+      - sudo
+    state: present
+
+############################################################
+# Enable Firewalld
+############################################################
+
+- name: Enable firewalld
+  service:
+    name: firewalld
+    enabled: yes
+    state: started
+
+############################################################
+# Enable Chrony
+############################################################
+
+- name: Enable chronyd
+  service:
+    name: chronyd
+    enabled: yes
+    state: started
+
+############################################################
+# Configure Timezone
+############################################################
+
+- name: Configure timezone
+  timezone:
+    name: "{{ timezone }}"
+
+- name: Create project directory
+  file:
+    path: "{{ project_directory }}"
+    state: directory
+    owner: ec2-user
+    group: ec2-user
+    mode: "0755"
+
+############################################################
+# Ensure Python3 is Default
+############################################################
+
+- name: Verify Python3 Installation
+  command: python3 --version
+  register: python_version
+  changed_when: false
+
+############################################################
+# Display Python Version
+############################################################
+
+- name: Show Python Version
+  debug:
+    var: python_version.stdout
+
+############################################################
+# Create Project Directory
+############################################################
+
+- name: Create project directory
+  file:
+    path: /opt/devops
+    state: directory
+    owner: ec2-user
+    group: ec2-user
+    mode: '0755'
+
+############################################################
+# Create Application Directory
+############################################################
+
+- name: Create application directory
+  file:
+    path: /opt/app
+    state: directory
+    owner: ec2-user
+    group: ec2-user
+    mode: '0755'
+
+############################################################
+# Create Logs Directory
+############################################################
+
+- name: Create logs directory
+  file:
+    path: /var/log/devops
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+############################################################
+# Ensure SSH Service is Running
+############################################################
+
+- name: Enable SSH service
+  service:
+    name: sshd
+    enabled: yes
+    state: started
+
+############################################################
+# Display Host Information
+############################################################
+
+- name: Display Hostname
+  command: hostname
+  register: hostname_output
+  changed_when: false
+
+- name: Print Hostname
+  debug:
+    msg: "Hostname is {{ hostname_output.stdout }}"
+
+############################################################
+# Display OS Information
+############################################################
+
+- name: Display OS Release
+  command: cat /etc/redhat-release
+  register: os_version
+  changed_when: false
+
+- name: Print OS Version
+  debug:
+    msg: "{{ os_version.stdout }}"

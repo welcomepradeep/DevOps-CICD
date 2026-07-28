@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+
+  web:
+
+    image: devops-website:latest
+
+    container_name: devops-web
+
+    build:
+      context: .
+
+    restart: always
+
+    ports:
+      - "80:80"
+
+    volumes:
+      - ./logs:/var/log/nginx
+
+    networks:
+      - devops-network
+
+networks:
+
+  devops-network:

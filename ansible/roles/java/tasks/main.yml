@@ -1,0 +1,37 @@
+---
+############################################################
+# Install Java 21
+############################################################
+
+- name: Install OpenJDK 21
+  dnf:
+    name:
+      - java-21-openjdk
+      - java-21-openjdk-devel
+    state: present
+
+############################################################
+# Configure JAVA_HOME
+############################################################
+
+- name: Configure JAVA_HOME
+  copy:
+    dest: /etc/profile.d/java.sh
+    mode: '0644'
+    content: |
+      export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+      export PATH=$JAVA_HOME/bin:$PATH
+
+############################################################
+# Verify Java
+############################################################
+
+- name: Get Java Version
+  command: java -version
+  register: java_version
+  changed_when: false
+  failed_when: false
+
+- name: Display Java Version
+  debug:
+    var: java_version.stderr_lines

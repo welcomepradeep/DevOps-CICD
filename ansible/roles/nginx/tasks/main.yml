@@ -1,0 +1,78 @@
+---
+############################################################
+# Install Nginx
+############################################################
+
+- name: Install Nginx
+  dnf:
+    name: nginx
+    state: present
+
+############################################################
+# Enable Nginx
+############################################################
+
+- name: Enable Nginx
+  service:
+    name: nginx
+    enabled: yes
+    state: started
+
+############################################################
+# Open Firewall
+############################################################
+
+- name: Allow HTTP
+  firewalld:
+    service: http
+    permanent: yes
+    state: enabled
+    immediate: yes
+
+- name: Allow HTTPS
+  firewalld:
+    service: https
+    permanent: yes
+    state: enabled
+    immediate: yes
+
+############################################################
+# Create Web Directory
+############################################################
+
+- name: Create Web Directory
+  file:
+    path: /var/www/html
+    state: directory
+    mode: '0755'
+
+############################################################
+# Sample Page
+############################################################
+
+- name: Create Default Page
+  copy:
+    dest: /var/www/html/index.html
+    mode: '0644'
+    content: |
+      <html>
+      <head>
+      <title>DevOps CI/CD Pipeline</title>
+      </head>
+      <body>
+      <h1>Deployment Successful</h1>
+      <h2>Configured using Ansible</h2>
+      </body>
+      </html>
+
+############################################################
+# Verify Nginx
+############################################################
+
+- name: Verify Nginx
+  command: systemctl is-active nginx
+  register: nginx_status
+  changed_when: false
+
+- debug:
+    var: nginx_status.stdout

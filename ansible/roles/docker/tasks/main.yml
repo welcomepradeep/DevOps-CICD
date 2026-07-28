@@ -1,0 +1,83 @@
+---
+############################################################
+# Install DNF Plugins
+############################################################
+
+- name: Install dnf plugins
+  dnf:
+    name: dnf-plugins-core
+    state: present
+
+############################################################
+# Add Docker Repository
+############################################################
+
+- name: Add Docker CE Repository
+  command: >
+    dnf config-manager --add-repo
+    https://download.docker.com/linux/rhel/docker-ce.repo
+  args:
+    creates: /etc/yum.repos.d/docker-ce.repo
+
+############################################################
+# Install Docker
+############################################################
+
+- name: Install Docker Packages
+  dnf:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+
+############################################################
+# Enable Containerd
+############################################################
+
+- name: Enable containerd
+  service:
+    name: containerd
+    enabled: yes
+    state: started
+
+############################################################
+# Enable Docker
+############################################################
+
+- name: Enable Docker
+  service:
+    name: docker
+    enabled: yes
+    state: started
+
+############################################################
+# Docker Group
+############################################################
+
+- name: Add ec2-user to docker group
+  user:
+    name: ec2-user
+    groups: docker
+    append: yes
+
+- name: Add jenkins to docker group
+  user:
+    name: jenkins
+    groups: docker
+    append: yes
+  ignore_errors: yes
+
+############################################################
+# Verify Docker
+############################################################
+
+- name: Docker Version
+  command: docker --version
+  register: docker_version
+  changed_when: false
+
+- debug:
+    var: docker_version.stdout

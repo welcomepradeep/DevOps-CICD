@@ -1,0 +1,60 @@
+---
+############################################################
+# Add Jenkins Repository
+############################################################
+
+- name: Download Jenkins Repo
+  get_url:
+    url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+    dest: /etc/yum.repos.d/jenkins.repo
+
+############################################################
+# Import Jenkins Key
+############################################################
+
+- name: Import Jenkins GPG Key
+  rpm_key:
+    state: present
+    key: https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+
+############################################################
+# Install Jenkins
+############################################################
+
+- name: Install Jenkins
+  dnf:
+    name: jenkins
+    state: present
+
+############################################################
+# Enable Jenkins
+############################################################
+
+- name: Start Jenkins
+  service:
+    name: jenkins
+    enabled: yes
+    state: started
+
+############################################################
+# Wait for Jenkins
+############################################################
+
+- name: Wait for Jenkins Port
+  wait_for:
+    port: 8080
+    delay: 5
+    timeout: 120
+
+############################################################
+# Get Initial Password
+############################################################
+
+- name: Read Jenkins Initial Password
+  command: cat /var/lib/jenkins/secrets/initialAdminPassword
+  register: jenkins_password
+  changed_when: false
+
+- name: Display Jenkins Password
+  debug:
+    msg: "{{ jenkins_password.stdout }}"
