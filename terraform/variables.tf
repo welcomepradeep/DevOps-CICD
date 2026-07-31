@@ -101,3 +101,11 @@ variable "web_volume_size" {
   default = 20
 
 }
+##########################################################
+# AMI ID
+##########################################################
+variable "ami_id" {
+  description = "RHEL 9 AMI ID"
+  type        = string
+}
+
