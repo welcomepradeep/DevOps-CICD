@@ -91,7 +91,7 @@ resource "aws_instance" "jenkins" {
 
 resource "aws_instance" "web" {
 
-  ami                         = data.aws_ami.rhel9.id
+  ami                         = var.ami_id
   instance_type               = var.web_instance_type
   subnet_id                   = aws_subnet.public.id
 
