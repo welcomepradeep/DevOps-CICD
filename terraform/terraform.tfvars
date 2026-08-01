@@ -14,7 +14,7 @@ key_name = "rhelkey2"
 # EC2
 ##########################################################
 
-jenkins_instance_type = "t3.large"
+jenkins_instance_type = "t3.small"
 
 web_instance_type = "t3.small"
 
