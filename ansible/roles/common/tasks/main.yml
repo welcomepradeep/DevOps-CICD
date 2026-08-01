@@ -60,9 +60,6 @@
 # Configure Timezone
 ############################################################
 
-- name: Configure timezone
-  community.general.timezone:
-    name: Asia/Kolkata
 
 - name: Create project directory
   file:
