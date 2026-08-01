@@ -19,7 +19,7 @@ resource "aws_instance" "jenkins" {
   # IAM Role
   ##########################################################
 
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
+  iam_instance_profile = data.aws_iam_instance_profile.ec2_profile.name
 
   ##########################################################
   # Monitoring
