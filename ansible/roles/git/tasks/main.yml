@@ -1,34 +1,19 @@
 ---
-############################################################
+##########################################################
 # Install Git
-############################################################
+##########################################################
 
 - name: Install Git
+  become: yes
   dnf:
     name: git
     state: present
 
-############################################################
-# Configure Git (Optional)
-############################################################
+##########################################################
+# Verify Git Installation
+##########################################################
 
-- name: Configure Git Username
-  git_config:
-    name: user.name
-    value: welcomepradeep
-    scope: system
-
-- name: Configure Git Email
-  git_config:
-    name: user.email
-    value: pradeep.nayak@hotmail.com
-    scope: system
-
-############################################################
-# Verify Git
-############################################################
-
-- name: Get Git Version
+- name: Check Git Version
   command: git --version
   register: git_version
   changed_when: false
@@ -36,3 +21,32 @@
 - name: Display Git Version
   debug:
     var: git_version.stdout
+
+##########################################################
+# Configure Git Username
+##########################################################
+
+- name: Configure Git Username
+  command: git config --global user.name "Jenkins"
+  become: yes
+
+##########################################################
+# Configure Git Email
+##########################################################
+
+- name: Configure Git Email
+  command: git config --global user.email "jenkins@example.com"
+  become: yes
+
+##########################################################
+# Verify Git Configuration
+##########################################################
+
+- name: Show Git Configuration
+  command: git config --global --list
+  register: git_config
+  changed_when: false
+
+- name: Display Git Configuration
+  debug:
+    var: git_config.stdout_lines
