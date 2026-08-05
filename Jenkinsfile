@@ -6,15 +6,33 @@ pipeline {
 
         AWS_DEFAULT_REGION = "ap-south-1"
 
-        IMAGE_NAME = "welcomepradeep/devops-website"
+        TF_DIR = "terraform"
 
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        ANSIBLE_DIR = "ansible"
+
+        APP_DIR = "app"
+
+        DOCKER_IMAGE = "pradeepnayak07/devops-cicd"
+
+        DOCKER_TAG = "${BUILD_NUMBER}"
+
+    }
+
+    options {
+
+        timestamps()
+
+        ansiColor('xterm')
 
     }
 
     stages {
 
-        stage('Checkout') {
+        //////////////////////////////////////////////////////
+        // Checkout
+        //////////////////////////////////////////////////////
+
+        stage('Checkout Source') {
 
             steps {
 
@@ -25,11 +43,15 @@ pipeline {
 
         }
 
+        //////////////////////////////////////////////////////
+        // Terraform Init
+        //////////////////////////////////////////////////////
+
         stage('Terraform Init') {
 
             steps {
 
-                dir('terraform') {
+                dir("${TF_DIR}") {
 
                     sh 'terraform init'
 
@@ -39,11 +61,15 @@ pipeline {
 
         }
 
+        //////////////////////////////////////////////////////
+        // Terraform Validate
+        //////////////////////////////////////////////////////
+
         stage('Terraform Validate') {
 
             steps {
 
-                dir('terraform') {
+                dir("${TF_DIR}") {
 
                     sh 'terraform validate'
 
@@ -53,27 +79,35 @@ pipeline {
 
         }
 
+        //////////////////////////////////////////////////////
+        // Terraform Plan
+        //////////////////////////////////////////////////////
+
         stage('Terraform Plan') {
 
             steps {
 
-                dir('terraform') {
+                dir("${TF_DIR}") {
 
-                    sh 'terraform plan'
+                    sh 'terraform plan -out=tfplan'
 
                 }
 
             }
 
         }
+
+        //////////////////////////////////////////////////////
+        // Terraform Apply
+        //////////////////////////////////////////////////////
 
         stage('Terraform Apply') {
 
             steps {
 
-                dir('terraform') {
+                dir("${TF_DIR}") {
 
-                    sh 'terraform apply -auto-approve'
+                    sh 'terraform apply -auto-approve tfplan'
 
                 }
 
@@ -81,107 +115,250 @@ pipeline {
 
         }
 
-        stage('Wait For EC2') {
+        //////////////////////////////////////////////////////
+        // Generate Inventory
+        //////////////////////////////////////////////////////
+
+        stage('Generate Inventory') {
 
             steps {
 
-                sleep(time:60,unit:"SECONDS")
+                dir("${TF_DIR}") {
+
+                    script {
+
+                        env.JENKINS_IP = sh(
+                                script: 'terraform output -raw jenkins_public_ip',
+                                returnStdout: true
+                        ).trim()
+
+                        env.WEB_IP = sh(
+                                script: 'terraform output -raw web_public_ip',
+                                returnStdout: true
+                        ).trim()
+
+                    }
+
+                }
+
+                sh """
+
+cat > ansible/inventory.ini <<EOF
+
+[jenkins]
+
+${JENKINS_IP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/.ssh/rhelkey2.pem
+
+[web]
+
+${WEB_IP} ansible_user=ec2-user ansible_ssh_private_key_file=/var/lib/jenkins/.ssh/rhelkey2.pem
+
+EOF
+
+"""
 
             }
 
         }
+
+        //////////////////////////////////////////////////////
+        // Wait for SSH
+        //////////////////////////////////////////////////////
+
+        stage('Wait For SSH') {
+
+            steps {
+
+                sh '''
+
+for ip in ${JENKINS_IP} ${WEB_IP}
+
+do
+
+echo "Waiting for $ip..."
+
+until ssh -o StrictHostKeyChecking=no \
+-i /var/lib/jenkins/.ssh/rhelkey2.pem \
+ec2-user@$ip "echo READY"
+
+do
+
+sleep 10
+
+done
+
+done
+
+'''
+
+            }
+
+        }
+
+        //////////////////////////////////////////////////////
+        // Test Ansible Connectivity
+        //////////////////////////////////////////////////////
+
+        stage('Ansible Ping') {
+
+            steps {
+
+                dir("${ANSIBLE_DIR}") {
+
+                    sh 'ansible all -i inventory.ini -m ping'
+
+                }
+
+            }
+
+        }
+
+        //////////////////////////////////////////////////////
+        // Configure Servers
+        //////////////////////////////////////////////////////
 
         stage('Run Ansible') {
 
             steps {
 
-                dir('ansible') {
+                dir("${ANSIBLE_DIR}") {
 
-                    sh 'ansible-playbook site.yml'
+                    sh 'ansible-playbook -i inventory.ini site.yml'
 
                 }
 
             }
 
         }
+
+        //////////////////////////////////////////////////////
+        // Docker Build
+        //////////////////////////////////////////////////////
 
         stage('Docker Build') {
 
             steps {
 
-                dir('app') {
+                dir("${APP_DIR}") {
 
-                    sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .'
+                    sh """
+
+docker build \
+-t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+
+"""
 
                 }
 
             }
 
         }
+
+        //////////////////////////////////////////////////////
+        // Docker Login
+        //////////////////////////////////////////////////////
 
         stage('Docker Login') {
 
             steps {
 
-                withCredentials([usernamePassword(
+                withCredentials([
+
+                    usernamePassword(
+
                     credentialsId: 'dockerhub',
-                    usernameVariable: 'USERNAME',
-                    passwordVariable: 'PASSWORD'
-                )]) {
+
+                    usernameVariable: 'DOCKER_USER',
+
+                    passwordVariable: 'DOCKER_PASS'
+
+                    )
+
+                ]) {
 
                     sh '''
-                    echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
-                    '''
+
+echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+'''
 
                 }
 
             }
 
         }
+
+        //////////////////////////////////////////////////////
+        // Push Image
+        //////////////////////////////////////////////////////
 
         stage('Push Docker Image') {
 
             steps {
 
-                sh 'docker push ${IMAGE_NAME}:${IMAGE_TAG}'
+                sh """
+
+docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+
+docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+
+docker push ${DOCKER_IMAGE}:latest
+
+"""
 
             }
 
         }
+
+        //////////////////////////////////////////////////////
+        // Deploy
+        //////////////////////////////////////////////////////
 
         stage('Deploy Application') {
 
             steps {
 
-                sshagent(['ec2-ssh-key']) {
+                sh """
 
-                    sh '''
-                    ssh -o StrictHostKeyChecking=no ec2-user@WEB_SERVER_IP \
-                    "docker pull ${IMAGE_NAME}:${IMAGE_TAG}"
+ssh \
+-o StrictHostKeyChecking=no \
+-i /var/lib/jenkins/.ssh/rhelkey2.pem \
+ec2-user@${WEB_IP} '
 
-                    ssh -o StrictHostKeyChecking=no ec2-user@WEB_SERVER_IP \
-                    "docker stop devops-web || true"
+docker pull ${DOCKER_IMAGE}:latest
 
-                    ssh -o StrictHostKeyChecking=no ec2-user@WEB_SERVER_IP \
-                    "docker rm devops-web || true"
+docker stop web || true
 
-                    ssh -o StrictHostKeyChecking=no ec2-user@WEB_SERVER_IP \
-                    "docker run -d --restart always \
-                    --name devops-web \
-                    -p 80:80 \
-                    ${IMAGE_NAME}:${IMAGE_TAG}"
-                    '''
-                }
+docker rm web || true
+
+docker run -d \
+--name web \
+-p 80:80 \
+${DOCKER_IMAGE}:latest
+
+'
+
+"""
 
             }
 
         }
 
+        //////////////////////////////////////////////////////
+        // Health Check
+        //////////////////////////////////////////////////////
+
         stage('Health Check') {
 
             steps {
 
-                sh './scripts/health-check.sh'
+                sh """
+
+sleep 20
+
+curl -I http://${WEB_IP}
+
+"""
 
             }
 
@@ -189,17 +366,35 @@ pipeline {
 
     }
 
+    //////////////////////////////////////////////////////
+    // Post
+    //////////////////////////////////////////////////////
+
     post {
 
         success {
 
+            echo "=================================="
+
             echo "Pipeline Completed Successfully"
+
+            echo "=================================="
+
+            echo "Jenkins : http://${JENKINS_IP}:8080"
+
+            echo "Website : http://${WEB_IP}"
 
         }
 
         failure {
 
             echo "Pipeline Failed"
+
+        }
+
+        always {
+
+            cleanWs()
 
         }
 
