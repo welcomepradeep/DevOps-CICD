@@ -18,23 +18,6 @@
     enabled: yes
     state: started
 
-############################################################
-# Open Firewall
-############################################################
-
-- name: Allow HTTP
-  firewalld:
-    service: http
-    permanent: yes
-    state: enabled
-    immediate: yes
-
-- name: Allow HTTPS
-  firewalld:
-    service: https
-    permanent: yes
-    state: enabled
-    immediate: yes
 
 ############################################################
 # Create Web Directory
