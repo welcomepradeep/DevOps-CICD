@@ -11,7 +11,7 @@ pipeline {
     options {
         timestamps()
     }
-    stages {
+
 //////////////////////////////////////////////////////
 // Checkout
 //////////////////////////////////////////////////////
@@ -139,32 +139,32 @@ stage('Run Ansible') {
         }
     }
 }
-        //////////////////////////////////////////////////////
-        // Docker Build
-        //////////////////////////////////////////////////////
-        stage('Docker Build') {
-            steps {
-                dir("${APP_DIR}") {
-                    sh """
+//////////////////////////////////////////////////////
+// Docker Build
+//////////////////////////////////////////////////////
+stage('Docker Build') {
+    steps {
+        dir("${APP_DIR}") {
+            sh """
 docker build \
 -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
 """
-                }
-            }
-        }
-        //////////////////////////////////////////////////////
-        // Docker Login
-        //////////////////////////////////////////////////////
-        stage('Docker Login') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                    credentialsId: 'dockerhub',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
-                    sh '''
+           }
+       }
+}
+//////////////////////////////////////////////////////
+// Docker Login
+//////////////////////////////////////////////////////
+stage('Docker Login') {
+    steps {
+        withCredentials([
+            usernamePassword(
+            credentialsId: 'dockerhub',
+            usernameVariable: 'DOCKER_USER',
+            passwordVariable: 'DOCKER_PASS'
+            )
+        ]) {
+            sh '''
 echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 '''
                 }
@@ -209,35 +209,22 @@ ${DOCKER_IMAGE}:latest
 // Health Check
 //////////////////////////////////////////////////////
 stage('Health Check') {
-
     steps {
-
         sh '''
-
 for i in {1..20}
 do
-
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${WEB_IP})
-
 if [ "$STATUS" = "200" ]; then
     echo "Application is healthy"
     exit 0
 fi
-
 echo "Waiting for application..."
-
 sleep 15
-
 done
-
 echo "Health check failed"
-
 exit 1
-
 '''
-
     }
-
 }
 //////////////////////////////////////////////////////
 // Post
