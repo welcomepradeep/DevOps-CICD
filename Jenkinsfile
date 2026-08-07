@@ -15,6 +15,7 @@ pipeline {
 //////////////////////////////////////////////////////
 // Checkout
 //////////////////////////////////////////////////////
+stages {
 stage('Checkout Source') {
     steps {
         git branch: 'main',
@@ -66,14 +67,32 @@ stage('Terraform Apply') {
 //////////////////////////////////////////////////////
 stage('Generate Inventory') {
     steps {
-        script {
-            writeFile file: 'ansible/inventory.ini', text: """
+
+        dir("${TF_DIR}") {
+
+            script {
+
+                env.JENKINS_IP = sh(
+                    script: 'terraform output -raw jenkins_public_ip',
+                    returnStdout: true
+                ).trim()
+
+                env.WEB_IP = sh(
+                    script: 'terraform output -raw web_public_ip',
+                    returnStdout: true
+                ).trim()
+
+            }
+
+        }
+
+        writeFile file: 'ansible/inventory.ini', text: """
 [jenkins]
 ${env.JENKINS_IP} ansible_user=ec2-user
+
 [web]
 ${env.WEB_IP} ansible_user=ec2-user
 """
-        }
     }
 }
 //////////////////////////////////////////////////////
@@ -191,7 +210,7 @@ stage('Deploy Application') {
             sh """
 ssh \
 -o StrictHostKeyChecking=no \
-ec2-user@${WEB_IP} '
+ec2-user@${env.WEB_IP} '
 docker pull ${DOCKER_IMAGE}:latest
 docker stop web || true
 docker rm web || true
