@@ -245,22 +245,25 @@ exit 1
 '''
     }
 }
+
+}
 //////////////////////////////////////////////////////
 // Post
 //////////////////////////////////////////////////////
-    post {
-        success {
-            echo "=================================="
-            echo "Pipeline Completed Successfully"
-            echo "=================================="
-            echo "Jenkins : http://${JENKINS_IP}:8080"
-            echo "Website : http://${WEB_IP}"
-        }
-        failure {
-            echo "Pipeline Failed"
-        }
-        always {
-            cleanWs()
-        }
+post {
+    success {
+        echo "=================================="
+        echo "Pipeline Completed Successfully"
+        echo "=================================="
+        echo "Jenkins : http://${JENKINS_IP}:8080"
+        echo "Website : http://${WEB_IP}"
     }
+    failure {
+        echo "Pipeline Failed"
+    }
+    always {
+        cleanWs()
+    }
+}
+
 }
