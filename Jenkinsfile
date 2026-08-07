@@ -100,33 +100,38 @@ ${env.WEB_IP} ansible_user=ec2-user
 //////////////////////////////////////////////////////
 stage('Wait For SSH') {
     steps {
-        sshagent(credentials: ['aws-key']) {
+        withCredentials([
+            sshUserPrivateKey(
+                credentialsId: 'aws-key',
+                keyFileVariable: 'SSH_KEY',
+                usernameVariable: 'SSH_USER'
+            )
+        ]) {
             script {
-                def hosts = [
-                    env.JENKINS_IP,
-                    env.WEB_IP
-                ]
+                def hosts = [env.JENKINS_IP, env.WEB_IP]
                 for (host in hosts) {
-                    echo "Checking SSH connectivity to ${host}"
                     timeout(time: 5, unit: 'MINUTES') {
                         waitUntil {
-                            try {
-                                sh """
-                                    nc -z -w5 ${host} 22
-                                """
-                                sh """
+                            def status = sh(
+                                script: """
+                                    chmod 400 "$SSH_KEY"
                                     ssh \
+                                      -i "$SSH_KEY" \
+                                      -o BatchMode=yes \
                                       -o StrictHostKeyChecking=no \
+                                      -o UserKnownHostsFile=/dev/null \
                                       -o ConnectTimeout=10 \
-                                      ec2-user@${host} "echo READY"
-                                """
-                                echo "${host} is ready."
+                                      ${SSH_USER}@${host} "echo READY"
+                                """,
+                                returnStatus: true
+                            )
+                            if (status == 0) {
+                                echo "${host} is reachable."
                                 return true
-                            } catch (Exception ex) {
-                                echo "Waiting for ${host}..."
-                                sleep 15
-                                return false
                             }
+                            echo "Waiting for ${host}..."
+                            sleep 15
+                            return false
                         }
                     }
                 }
