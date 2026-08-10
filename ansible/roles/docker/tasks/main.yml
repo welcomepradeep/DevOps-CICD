@@ -61,25 +61,24 @@
     append: true
 
 ############################################################
-# Add Jenkins to Docker group
+# Add Jenkins to Docker group if Jenkins exists
 ############################################################
 
-- name: Add jenkins to docker group
+- name: Check whether Jenkins user exists
+  ansible.builtin.getent:
+    database: passwd
+    key: jenkins
+  register: jenkins_user
+  failed_when: false
+  changed_when: false
+
+
+- name: Add jenkins user to docker group
   ansible.builtin.user:
     name: jenkins
     groups: docker
     append: true
-  when: ansible_facts.get('os_family') == 'RedHat'
-
-############################################################
-# Restart Jenkins so it gets Docker group membership
-############################################################
-
-- name: Restart Jenkins
-  ansible.builtin.service:
-    name: jenkins
-    state: restarted
-  when: ansible_facts.get('os_family') == 'RedHat'
+  when: jenkins_user.ansible_facts.getent_passwd.jenkins is defined
 
 ############################################################
 # Verify Docker Service
@@ -93,7 +92,26 @@
 
 - name: Display Docker service status
   ansible.builtin.debug:
-    var: docker_service_status.stdout
+    msg: "Docker service status: {{ docker_service_status.stdout }}"
+
+############################################################
+# Verify Docker Socket
+############################################################
+
+- name: Check Docker socket
+  ansible.builtin.stat:
+    path: /var/run/docker.sock
+  register: docker_socket
+
+
+- name: Display Docker socket
+  ansible.builtin.debug:
+    msg:
+      - "Docker socket exists: {{ docker_socket.stat.exists }}"
+      - "Docker socket owner: {{ docker_socket.stat.pw_name | default('unknown') }}"
+      - "Docker socket group: {{ docker_socket.stat.gr_name | default('unknown') }}"
+
+
 
 ############################################################
 # Verify Docker Version
@@ -107,7 +125,7 @@
 
 - name: Display Docker Version
   ansible.builtin.debug:
-    var: docker_version.stdout
+    msg: "{{ docker_version.stdout }}"
 
 ############################################################
 # Verify Docker Socket Permissions
