@@ -1,10 +1,9 @@
----
 ############################################################
 # Install DNF Plugins
 ############################################################
 
 - name: Install dnf plugins
-  dnf:
+  ansible.builtin.dnf:
     name: dnf-plugins-core
     state: present
 
@@ -13,10 +12,8 @@
 ############################################################
 
 - name: Add Docker CE Repository
-  command: >
-    dnf config-manager --add-repo
-    https://download.docker.com/linux/rhel/docker-ce.repo
-  args:
+  ansible.builtin.command:
+    cmd: dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
     creates: /etc/yum.repos.d/docker-ce.repo
 
 ############################################################
@@ -24,7 +21,7 @@
 ############################################################
 
 - name: Install Docker Packages
-  dnf:
+  ansible.builtin.dnf:
     name:
       - docker-ce
       - docker-ce-cli
@@ -38,9 +35,9 @@
 ############################################################
 
 - name: Enable containerd
-  service:
+  ansible.builtin.service:
     name: containerd
-    enabled: yes
+    enabled: true
     state: started
 
 ############################################################
@@ -48,36 +45,79 @@
 ############################################################
 
 - name: Enable Docker
-  service:
+  ansible.builtin.service:
     name: docker
-    enabled: yes
+    enabled: true
     state: started
 
 ############################################################
-# Docker Group
+# Add ec2-user to Docker group
 ############################################################
 
 - name: Add ec2-user to docker group
-  user:
+  ansible.builtin.user:
     name: ec2-user
     groups: docker
-    append: yes
-
-- name: Add jenkins to docker group
-  user:
-    name: jenkins
-    groups: docker
-    append: yes
-  ignore_errors: yes
+    append: true
 
 ############################################################
-# Verify Docker
+# Add Jenkins to Docker group
+############################################################
+
+- name: Add jenkins to docker group
+  ansible.builtin.user:
+    name: jenkins
+    groups: docker
+    append: true
+  when: ansible_facts.get('os_family') == 'RedHat'
+
+############################################################
+# Restart Jenkins so it gets Docker group membership
+############################################################
+
+- name: Restart Jenkins
+  ansible.builtin.service:
+    name: jenkins
+    state: restarted
+  when: ansible_facts.get('os_family') == 'RedHat'
+
+############################################################
+# Verify Docker Service
+############################################################
+
+- name: Check Docker service
+  ansible.builtin.command:
+    cmd: systemctl is-active docker
+  register: docker_service_status
+  changed_when: false
+
+- name: Display Docker service status
+  ansible.builtin.debug:
+    var: docker_service_status.stdout
+
+############################################################
+# Verify Docker Version
 ############################################################
 
 - name: Docker Version
-  command: docker --version
+  ansible.builtin.command:
+    cmd: docker --version
   register: docker_version
   changed_when: false
 
-- debug:
+- name: Display Docker Version
+  ansible.builtin.debug:
     var: docker_version.stdout
+
+############################################################
+# Verify Docker Socket Permissions
+############################################################
+
+- name: Check Docker socket
+  ansible.builtin.stat:
+    path: /var/run/docker.sock
+  register: docker_socket
+
+- name: Display Docker socket information
+  ansible.builtin.debug:
+    msg: "{{ docker_socket.stat }}"
