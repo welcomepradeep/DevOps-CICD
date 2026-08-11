@@ -60,6 +60,7 @@
     groups: docker
     append: true
 
+
 ############################################################
 # Add Jenkins to Docker group if Jenkins exists
 ############################################################
@@ -71,13 +72,43 @@
   register: jenkins_user
   failed_when: false
 
-
-- name: Add jenkins user to docker group
+- name: Add Jenkins user to Docker group
   ansible.builtin.user:
     name: jenkins
     groups: docker
     append: true
-  when: jenkins_user.ansible_facts.getent_passwd.jenkins is defined
+  when:
+    - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
+  register: jenkins_docker_group
+
+- name: Restart Jenkins when Docker group membership changes
+  ansible.builtin.systemd:
+    name: jenkins
+    state: restarted
+  when:
+    - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
+    - jenkins_docker_group.changed
+
+############################################################
+# Verify Jenkins Docker Access
+############################################################
+
+- name: Verify Jenkins can access Docker
+  ansible.builtin.command:
+    cmd: docker ps
+  become: true
+  become_user: jenkins
+  register: jenkins_docker_test
+  changed_when: false
+  when:
+    - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
+
+- name: Display Jenkins Docker access result
+  ansible.builtin.debug:
+    msg: "Jenkins Docker access verified successfully"
+  when:
+    - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
+    - jenkins_docker_test.rc == 0
 
 ############################################################
 # Verify Docker Service
