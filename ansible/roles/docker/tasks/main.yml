@@ -62,7 +62,7 @@
 
 
 ############################################################
-# Add Jenkins to Docker group if Jenkins exists
+# Add Jenkins to Docker group
 ############################################################
 
 - name: Check whether Jenkins user exists
@@ -72,43 +72,42 @@
   register: jenkins_user
   failed_when: false
 
-- name: Add Jenkins user to Docker group
-  ansible.builtin.user:
-    name: jenkins
-    groups: docker
-    append: true
+- name: Add Jenkins to Docker group using usermod
+  ansible.builtin.command:
+    cmd: usermod -aG docker jenkins
+  become: true
   when:
     - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
   register: jenkins_docker_group
+  changed_when: true
 
-- name: Restart Jenkins when Docker group membership changes
+############################################################
+# Restart Jenkins so it gets the new supplementary group
+############################################################
+
+- name: Restart Jenkins
   ansible.builtin.systemd:
     name: jenkins
     state: restarted
-  when:
-    - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
-    - jenkins_docker_group.changed
-
-############################################################
-# Verify Jenkins Docker Access
-############################################################
-
-- name: Verify Jenkins can access Docker
-  ansible.builtin.command:
-    cmd: docker ps
   become: true
-  become_user: jenkins
-  register: jenkins_docker_test
-  changed_when: false
   when:
     - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
 
-- name: Display Jenkins Docker access result
+############################################################
+# Verify Jenkins group membership
+############################################################
+
+- name: Verify Jenkins Docker group membership
+  ansible.builtin.command:
+    cmd: id jenkins
+  become: true
+  register: jenkins_id
+  changed_when: false
+
+- name: Display Jenkins groups
   ansible.builtin.debug:
-    msg: "Jenkins Docker access verified successfully"
-  when:
-    - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
-    - jenkins_docker_test.rc == 0
+    var: jenkins_id.stdout
+
 
 ############################################################
 # Verify Docker Service
