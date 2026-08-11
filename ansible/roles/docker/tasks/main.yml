@@ -7,7 +7,6 @@
     name: dnf-plugins-core
     state: present
 
-
 ############################################################
 # Add Docker Repository
 ############################################################
@@ -19,7 +18,6 @@
       https://download.docker.com/linux/rhel/docker-ce.repo
   args:
     creates: /etc/yum.repos.d/docker-ce.repo
-
 
 ############################################################
 # Install Docker
@@ -35,7 +33,6 @@
       - docker-compose-plugin
     state: present
 
-
 ############################################################
 # Enable Containerd
 ############################################################
@@ -45,7 +42,6 @@
     name: containerd
     enabled: true
     state: started
-
 
 ############################################################
 # Enable Docker
@@ -57,10 +53,10 @@
     enabled: true
     state: started
 
-
 ############################################################
 # Add EC2 user to Docker group
-# This applies to both Jenkins and Web servers
+#
+# Required because Ansible/SSH connects using ec2-user.
 ############################################################
 
 - name: Add ec2-user to docker group
@@ -69,10 +65,10 @@
     groups: docker
     append: true
 
-
 ############################################################
-# Jenkins-specific configuration
-# ONLY runs on Jenkins server
+# Jenkins Server ONLY
+#
+# Jenkins is NOT expected on the Web server.
 ############################################################
 
 - name: Check whether Jenkins user exists
@@ -81,46 +77,22 @@
     key: jenkins
   register: jenkins_user
   failed_when: false
+  changed_when: false
   when: "'jenkins' in group_names"
-
 
 ############################################################
 # Add Jenkins to Docker group
 ############################################################
 
-- name: Check Jenkins supplementary groups
-  ansible.builtin.command:
-    cmd: id -nG jenkins
-  register: jenkins_groups
-  changed_when: false
-  when:
-    - "'jenkins' in group_names"
-    - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
-
-
 - name: Add Jenkins to Docker group
   ansible.builtin.command:
-    cmd: usermod -aG docker jenkins
-  register: jenkins_docker_group
-  changed_when: true
+    cmd: /usr/sbin/usermod -aG docker jenkins
+  become: true
   when:
     - "'jenkins' in group_names"
     - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
-    - "'docker' not in jenkins_groups.stdout.split()"
-
-
-############################################################
-# Restart Jenkins after Docker group change
-############################################################
-
-- name: Restart Jenkins
-  ansible.builtin.systemd:
-    name: jenkins
-    state: restarted
-  when:
-    - "'jenkins' in group_names"
-    - jenkins_docker_group.changed | default(false)
-
+  register: jenkins_docker_group
+  changed_when: true
 
 ############################################################
 # Verify Jenkins Docker group membership
@@ -135,17 +107,16 @@
     - "'jenkins' in group_names"
     - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
 
-
 ############################################################
 # Display Jenkins groups
 ############################################################
 
 - name: Display Jenkins groups
   ansible.builtin.debug:
-    var: jenkins_id.stdout
+    msg: "{{ jenkins_id.stdout }}"
   when:
-    - "'jenkins' in group_names"
     - jenkins_id is defined
+    - jenkins_id.stdout is defined
 
 ############################################################
 # Verify Docker Service
@@ -170,15 +141,13 @@
     path: /var/run/docker.sock
   register: docker_socket
 
-
 - name: Display Docker socket
   ansible.builtin.debug:
     msg:
       - "Docker socket exists: {{ docker_socket.stat.exists }}"
       - "Docker socket owner: {{ docker_socket.stat.pw_name | default('unknown') }}"
       - "Docker socket group: {{ docker_socket.stat.gr_name | default('unknown') }}"
-
-
+      - "Docker socket mode: {{ docker_socket.stat.mode | default('unknown') }}"
 
 ############################################################
 # Verify Docker Version
@@ -195,14 +164,25 @@
     msg: "{{ docker_version.stdout }}"
 
 ############################################################
-# Verify Docker Socket Permissions
+# Final Jenkins Docker Access Test
+#
+# This is the important test for your Jenkins build.
 ############################################################
 
-- name: Check Docker socket
-  ansible.builtin.stat:
-    path: /var/run/docker.sock
-  register: docker_socket
+- name: Test Docker access as Jenkins
+  ansible.builtin.command:
+    cmd: docker ps
+  become: true
+  become_user: jenkins
+  register: jenkins_docker_test
+  changed_when: false
+  when:
+    - "'jenkins' in group_names"
+    - jenkins_user.ansible_facts.getent_passwd.jenkins is defined
 
-- name: Display Docker socket information
+- name: Display Jenkins Docker access result
   ansible.builtin.debug:
-    msg: "{{ docker_socket.stat }}"
+    msg: "Jenkins Docker access verified successfully"
+  when:
+    - jenkins_docker_test is defined
+    - jenkins_docker_test.rc | default(1) == 0
