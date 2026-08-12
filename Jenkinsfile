@@ -163,6 +163,34 @@ stage('Run Ansible') {
         }
     }
 }
+
+stage('Verify Jenkins Docker Access') {
+    steps {
+        sh '''
+            echo "===== HOST ====="
+            hostname
+
+            echo "===== USER ====="
+            whoami
+
+            echo "===== ID ====="
+            id
+
+            echo "===== DOCKER GROUP ====="
+            getent group docker || true
+
+            echo "===== DOCKER SOCKET ====="
+            ls -l /var/run/docker.sock
+
+            echo "===== DOCKER ====="
+            docker version
+
+            echo "===== DOCKER PS ====="
+            docker ps
+        '''
+    }
+}
+
 //////////////////////////////////////////////////////
 // Docker Build
 //////////////////////////////////////////////////////
