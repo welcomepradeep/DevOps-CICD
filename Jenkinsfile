@@ -164,76 +164,142 @@ stage('Run Ansible') {
     }
 }
 
-stage('Verify Jenkins Docker Access') {
+stage('Verify New Jenkins Docker Access') {
     steps {
-        sh '''
-            echo "===== HOST ====="
-            hostname
+        sshagent(credentials: ['aws-key']) {
+            sh """
+                echo "======================================"
+                echo "VERIFYING NEW JENKINS SERVER"
+                echo "======================================"
 
-            echo "===== USER ====="
-            whoami
+                ssh -o StrictHostKeyChecking=no \
+                    ec2-user@${JENKINS_IP} '
+                        echo "===== HOST ====="
+                        hostname
 
-            echo "===== ID ====="
-            id
+                        echo "===== USER ====="
+                        whoami
 
-            echo "===== DOCKER GROUP ====="
-            getent group docker || true
+                        echo "===== JENKINS USER ====="
+                        id jenkins
 
-            echo "===== DOCKER SOCKET ====="
-            ls -l /var/run/docker.sock
+                        echo "===== DOCKER GROUP ====="
+                        getent group docker
 
-            echo "===== DOCKER ====="
-            docker version
+                        echo "===== DOCKER SOCKET ====="
+                        ls -l /var/run/docker.sock
 
-            echo "===== DOCKER PS ====="
-            docker ps
-        '''
+                        echo "===== JENKINS GROUPS ====="
+                        id -nG jenkins
+
+                        echo "===== DOCKER TEST AS JENKINS ====="
+                        sudo -u jenkins docker ps
+                    '
+            """
+        }
+    }
+}
+//////////////////////////////////////////////////////
+// Docker Build
+//////////////////////////////////////////////////////
+
+stage('Copy Application To New Jenkins') {
+    steps {
+        sshagent(credentials: ['aws-key']) {
+            sh """
+                ssh -o StrictHostKeyChecking=no ec2-user@${JENKINS_IP} '
+                    rm -rf /tmp/devops-cicd
+                    mkdir -p /tmp/devops-cicd
+                '
+
+                scp -r -o StrictHostKeyChecking=no \
+                    ${APP_DIR}/* \
+                    ec2-user@${JENKINS_IP}:/tmp/devops-cicd/
+            """
+        }
+    }
+}
+
+stage('Docker Build') {
+    steps {
+        sshagent(credentials: ['aws-key']) {
+            sh """
+                ssh -o StrictHostKeyChecking=no ec2-user@${JENKINS_IP} '
+                    set -e
+
+                    echo "===== BUILD HOST ====="
+                    hostname
+
+                    echo "===== BUILD USER ====="
+                    whoami
+
+                    echo "===== JENKINS DOCKER TEST ====="
+                    sudo -u jenkins docker ps
+
+                    echo "===== DOCKER BUILD ====="
+                    cd /tmp/devops-cicd
+
+                    sudo -u jenkins docker build \
+                        -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+
+                    sudo -u jenkins docker tag \
+                        ${DOCKER_IMAGE}:${DOCKER_TAG} \
+                        ${DOCKER_IMAGE}:latest
+                '
+            """
+        }
     }
 }
 
 //////////////////////////////////////////////////////
-// Docker Build
-//////////////////////////////////////////////////////
-stage('Docker Build') {
-    steps {
-        dir("${APP_DIR}") {
-            sh """
-docker build \
--t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-"""
-           }
-       }
-}
-//////////////////////////////////////////////////////
 // Docker Login
 //////////////////////////////////////////////////////
+
 stage('Docker Login') {
     steps {
         withCredentials([
             usernamePassword(
-            credentialsId: 'dockerhub',
-            usernameVariable: 'DOCKER_USER',
-            passwordVariable: 'DOCKER_PASS'
+                credentialsId: 'dockerhub',
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_PASS'
             )
         ]) {
-            sh '''
-echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-'''
-                }
+            sshagent(credentials: ['aws-key']) {
+                sh """
+                    ssh -o StrictHostKeyChecking=no ec2-user@${JENKINS_IP} '
+                        echo "\$DOCKER_PASS" | \
+                        sudo -u jenkins docker login \
+                        -u "\$DOCKER_USER" \
+                        --password-stdin
+                    '
+                """
             }
         }
+    }
+}
+
 //////////////////////////////////////////////////////
 // Push Image
 //////////////////////////////////////////////////////
-        stage('Push Docker Image') {
-            steps {
-                sh """
-docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
-docker push ${DOCKER_IMAGE}:latest
-"""
-            }
+
+stage('Push Docker Image') {
+    steps {
+        sshagent(credentials: ['aws-key']) {
+            sh """
+                ssh -o StrictHostKeyChecking=no ec2-user@${JENKINS_IP} '
+                    set -e
+
+                    sudo -u jenkins docker push \
+                        ${DOCKER_IMAGE}:${DOCKER_TAG}
+
+                    sudo -u jenkins docker push \
+                        ${DOCKER_IMAGE}:latest
+                '
+            """
         }
+    }
+}
+
 //////////////////////////////////////////////////////
 // Deploy
 //////////////////////////////////////////////////////
@@ -243,7 +309,7 @@ stage('Deploy Application') {
             sh """
 ssh \
 -o StrictHostKeyChecking=no \
-ec2-user@${env.WEB_IP} '
+ec2-user@${WEB_IP} '
 docker pull ${DOCKER_IMAGE}:latest
 docker stop web || true
 docker rm web || true
