@@ -64,7 +64,6 @@
     name: ec2-user
     groups: docker
     append: true
-    become: true
 
 ############################################################
 # Jenkins Server ONLY
@@ -93,7 +92,6 @@
     name: jenkins
     groups: docker
     append: true
-  become: true
   register: jenkins_docker_group
   when:
     - "'jenkins' in group_names"
@@ -110,7 +108,6 @@
   ansible.builtin.systemd:
     name: jenkins
     state: restarted
-  become: true
   when:
     - "'jenkins' in group_names"
     - jenkins_docker_group.changed | default(false)
