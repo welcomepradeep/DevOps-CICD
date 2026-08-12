@@ -1,15 +1,14 @@
----
 - name: Configure Jenkins Server
   hosts: jenkins
   become: yes
 
   roles:
-
     - common
     - git
     - java
-    - docker
     - jenkins
+    - docker
+
 
 ##########################################################
 
@@ -18,7 +17,6 @@
   become: yes
 
   roles:
-
     - common
     - docker
     - nginx
