@@ -95,6 +95,33 @@ ${env.WEB_IP} ansible_user=ec2-user
 """
     }
 }
+
+//////////////////////////////////////////////////////
+// Install Ansible Collections
+//////////////////////////////////////////////////////
+stage('Install Ansible Collections') {
+    steps {
+        dir("${ANSIBLE_DIR}") {
+            sh '''
+                set -e
+
+                echo "======================================"
+                echo "INSTALLING ANSIBLE COLLECTIONS"
+                echo "======================================"
+
+                ansible-galaxy collection install \
+                    -r requirements.yml \
+                    --force
+
+                echo "======================================"
+                echo "VERIFYING ANSIBLE.POSIX"
+                echo "======================================"
+
+                ansible-galaxy collection list | grep ansible.posix
+            '''
+        }
+    }
+}
 //////////////////////////////////////////////////////
 // Wait for SSH
 //////////////////////////////////////////////////////
