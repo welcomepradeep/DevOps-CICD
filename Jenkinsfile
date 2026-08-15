@@ -265,14 +265,18 @@ stage('Docker Login') {
             )
         ]) {
             sshagent(credentials: ['aws-key']) {
-                sh """
-                    ssh -o StrictHostKeyChecking=no ec2-user@${JENKINS_IP} '
-                        echo "\$DOCKER_PASS" | \
-                        sudo -u jenkins docker login \
-                        -u "\$DOCKER_USER" \
-                        --password-stdin
-                    '
-                """
+                sh '''
+                    set +x
+
+                    echo "===== DOCKER LOGIN ====="
+
+                    printf '%s\\n' "$DOCKER_PASS" | \
+                    ssh -o StrictHostKeyChecking=no \
+                        ec2-user@"${JENKINS_IP}" \
+                        "sudo -u jenkins docker login \
+                        -u '$DOCKER_USER' \
+                        --password-stdin"
+                '''
             }
         }
     }
