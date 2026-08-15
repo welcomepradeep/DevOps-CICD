@@ -1,61 +1,86 @@
----
 ############################################################
 # Install Nginx
 ############################################################
 
 - name: Install Nginx
-  dnf:
+  ansible.builtin.dnf:
     name: nginx
     state: present
 
 ############################################################
-# Enable Nginx
+# Install SELinux Ansible Collection
+############################################################
+
+- name: Install required SELinux packages
+  ansible.builtin.dnf:
+    name:
+      - policycoreutils-python-utils
+    state: present
+
+############################################################
+# Allow Nginx to connect to Docker upstream
+############################################################
+
+- name: Enable SELinux httpd network connections
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
+
+############################################################
+# Create DevOps CI/CD Nginx Configuration
+############################################################
+
+- name: Create DevOps CI/CD Nginx configuration
+  ansible.builtin.copy:
+    dest: /etc/nginx/conf.d/devops-cicd.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      server {
+          listen 80 default_server;
+          listen [::]:80 default_server;
+
+          server_name _;
+
+          location / {
+              proxy_pass http://127.0.0.1:8080;
+
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+          }
+      }
+  notify: Restart Nginx
+
+############################################################
+# Disable Default Nginx Server
+############################################################
+
+- name: Remove default Nginx server block
+  ansible.builtin.replace:
+    path: /etc/nginx/nginx.conf
+    regexp: '(?s)\n\s*server\s*\{\s*listen\s+80;.*?\n\s*\}'
+    replace: ''
+  notify: Restart Nginx
+
+############################################################
+# Validate Nginx Configuration
+############################################################
+
+- name: Validate Nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+
+############################################################
+# Enable and Start Nginx
 ############################################################
 
 - name: Enable Nginx
-  service:
+  ansible.builtin.systemd:
     name: nginx
-    enabled: yes
+    enabled: true
     state: started
-
-
-############################################################
-# Create Web Directory
-############################################################
-
-- name: Create Web Directory
-  file:
-    path: /var/www/html
-    state: directory
-    mode: '0755'
-
-############################################################
-# Sample Page
-############################################################
-
-- name: Create Default Page
-  copy:
-    dest: /var/www/html/index.html
-    mode: '0644'
-    content: |
-      <html>
-      <head>
-      <title>DevOps CI/CD Pipeline</title>
-      </head>
-      <body>
-      <h1>Deployment Successful</h1>
-      <h2>Configured using Ansible</h2>
-      </body>
-      </html>
-
-############################################################
-# Verify Nginx
-############################################################
-
-- name: Verify Nginx
-  command: systemctl is-active nginx
-  register: nginx_status
-  changed_when: false
-
-- debug:
-    var: nginx_status.stdout

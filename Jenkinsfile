@@ -353,25 +353,40 @@ stage('Deploy Application') {
 //////////////////////////////////////////////////////
 // Health Check
 //////////////////////////////////////////////////////
+
 stage('Health Check') {
     steps {
         sh '''
-for i in {1..20}
-do
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${WEB_IP})
-if [ "$STATUS" = "200" ]; then
-    echo "Application is healthy"
-    exit 0
-fi
-echo "Waiting for application..."
-sleep 15
-done
-echo "Health check failed"
-exit 1
-'''
-    }
-}
+            set -e
 
+            echo "======================================"
+            echo "APPLICATION HEALTH CHECK"
+            echo "======================================"
+
+            for i in {1..20}
+            do
+                echo "Health check attempt $i/20"
+
+                STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                    --connect-timeout 5 \
+                    --max-time 10 \
+                    http://${WEB_IP})
+
+                echo "HTTP Status: ${STATUS}"
+
+                if [ "$STATUS" = "200" ]; then
+                    echo "Application is healthy"
+                    exit 0
+                fi
+
+                echo "Waiting for application..."
+                sleep 15
+            done
+
+            echo "Health check failed"
+            exit 1
+        '''
+    }
 }
 //////////////////////////////////////////////////////
 // Post
