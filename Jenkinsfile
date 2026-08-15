@@ -311,22 +311,45 @@ stage('Deploy Application') {
     steps {
         sshagent(credentials: ['aws-key']) {
             sh """
-ssh \
--o StrictHostKeyChecking=no \
-ec2-user@${WEB_IP} '
-docker pull ${DOCKER_IMAGE}:latest
-docker stop web || true
-docker rm web || true
-docker run -d \
---restart unless-stopped \
---name web \
--p 80:80 \
-${DOCKER_IMAGE}:latest
-'
-"""
+                ssh -o StrictHostKeyChecking=no ec2-user@${WEB_IP} '
+                    set -e
+
+                    echo "======================================"
+                    echo "DEPLOYING APPLICATION"
+                    echo "======================================"
+
+                    echo "===== PULL LATEST IMAGE ====="
+                    sudo docker pull ${DOCKER_IMAGE}:latest
+
+                    echo "===== STOP OLD CONTAINER ====="
+                    sudo docker stop web || true
+
+                    echo "===== REMOVE OLD CONTAINER ====="
+                    sudo docker rm web || true
+
+                    echo "===== START NEW CONTAINER ====="
+                    sudo docker run -d \\
+                        --restart unless-stopped \\
+                        --name web \\
+                        -p 127.0.0.1:8080:80 \\
+                        ${DOCKER_IMAGE}:latest
+
+                    echo "===== VERIFY CONTAINER ====="
+                    sudo docker ps
+
+                    echo "===== VERIFY APPLICATION PORT ====="
+                    sudo ss -lntp | grep ":8080" || true
+
+                    echo "===== TEST APPLICATION DIRECTLY ====="
+                    curl -f http://127.0.0.1:8080
+
+                    echo "===== DEPLOYMENT SUCCESSFUL ====="
+                '
+            """
         }
     }
 }
+
 //////////////////////////////////////////////////////
 // Health Check
 //////////////////////////////////////////////////////
