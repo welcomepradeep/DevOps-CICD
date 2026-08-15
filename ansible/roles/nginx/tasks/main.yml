@@ -31,6 +31,38 @@
 
 
 ############################################################
+# Configure Firewall
+############################################################
+
+- name: Install firewalld
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+
+- name: Enable and start firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+
+- name: Allow HTTP through firewalld
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+    immediate: true
+
+
+- name: Allow HTTPS through firewalld
+  ansible.posix.firewalld:
+    service: https
+    permanent: true
+    state: enabled
+    immediate: true
+
+############################################################
 # Disable Default Nginx Server
 ############################################################
 
@@ -155,3 +187,17 @@
 - name: Display Nginx status
   ansible.builtin.debug:
     msg: "Nginx status: {{ nginx_status.stdout }}"
+
+############################################################
+# Verify HTTP Firewall
+############################################################
+
+- name: Check HTTP firewall service
+  ansible.builtin.command:
+    cmd: firewall-cmd --list-services
+  register: firewall_services
+  changed_when: false
+
+- name: Display firewall services
+  ansible.builtin.debug:
+    msg: "Firewall services: {{ firewall_services.stdout }}"
