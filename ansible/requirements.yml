@@ -1,0 +1,6 @@
+cd DevOps-CICD
+cat > ansible/requirements.yml <<'EOF'
+---
+collections:
+  - name: ansible.posix
+EOF
